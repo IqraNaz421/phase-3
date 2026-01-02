@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlmodel
+psycopg2-binary
+python-dotenv
+openai>=1.1.0
+mcp
+pydantic-settings
+better-auth
+python-multipart
+httpx
