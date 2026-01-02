@@ -7,12 +7,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Ab path change hoga kyunki file bahar hai
+# Yahan 'backend/' lagana zaroori hai agar file root mein nahi hai
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pura backend folder copy karein
 COPY backend/ .
 
-# Hugging Face default port use karein
+#src folder ke andar main.py hai toh path ye hoga
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "7860"]
