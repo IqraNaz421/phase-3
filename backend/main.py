@@ -138,20 +138,23 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import ssl
 import os
+import uuid
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine
 from typing import List
+from datetime import datetime
 
 # 1. Load env
 load_dotenv()
 
 # --- Imports ---
 try:
-    from src.auth import auth_router, get_current_user
+    from src.auth import auth_router
     from src.tasks import tasks_router
     from src.models import Task
     from src.api.conversations import router as conversations_router
     from src.api.messages import router as messages_router
+    from src.api.chatkit import router as chatkit_router
 except ImportError as e:
     print(f"❌ Import Error: {e}")
     import sys
@@ -239,7 +242,7 @@ async def get_task_stats(user_id: str, session: AsyncSession = Depends(get_sessi
         statement = select(Task).where(Task.user_id == user_id)
         result = await session.execute(statement)
         tasks = result.scalars().all()
-        
+
         total = len(tasks)
         completed = len([t for t in tasks if t.completed])
         pending = total - completed
@@ -262,10 +265,24 @@ async def get_task_stats(user_id: str, session: AsyncSession = Depends(get_sessi
         print(f"❌ Error: {e}")
         return {"totalTasks": 0, "completed": 0, "pending": 0, "efficiency": "0%", "weeklyStats": []}
 
+
+
+
+
+# --- 5. HEALTH CHECK ---
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "message": "Backend is running"}
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to Task Management API"}
+
 app.include_router(auth_router, prefix="/api")
 app.include_router(tasks_router, prefix="/api")
 app.include_router(conversations_router)  # Prefix already in router
 app.include_router(messages_router)  # Prefix already in router
+app.include_router(chatkit_router)  # ChatKit API for frontend integration
 
 if __name__ == "__main__":
     import uvicorn

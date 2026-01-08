@@ -6,8 +6,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { LogOut, TrendingUp, Activity, PieChart as PieIcon, Zap, Terminal, Shield, Sparkles } from 'lucide-react';
 
+// Get API base URL from environment
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+
 export default function DashboardPage() {
-  const { user, isLoading, signOut } = useAuth(); // Logout function hook se li
+  const { user, isLoading, signOut } = useAuth();
   const [profile, setProfile] = useState({ name: 'System Operator' });
   const [stats, setStats] = useState({
     totalTasks: 0,
@@ -16,6 +19,7 @@ export default function DashboardPage() {
     efficiency: "0%",
     weeklyStats: []
   });
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Fetch stats and profile cache
   useEffect(() => {
@@ -29,19 +33,37 @@ export default function DashboardPage() {
     }
 
     const fetchStats = async () => {
-      if (!user?.id) return;
+      if (!user?.id) {
+        console.log('[Dashboard] No user ID available');
+        return;
+      }
+
       try {
-        const res = await fetch(`https://iqoonaz4321-taskneon-app.hf.space/api/tasks/stats?user_id=${user.id}`);
+        console.log('[Dashboard] Fetching stats from:', `${API_BASE_URL}/api/tasks/stats?user_id=${user.id}`);
+        const res = await fetch(`${API_BASE_URL}/api/tasks/stats?user_id=${user.id}`, {
+          credentials: 'include'
+        });
+
+        console.log('[Dashboard] Response status:', res.status);
+
         if (res.ok) {
           const data = await res.json();
+          console.log('[Dashboard] Stats received:', data);
           setStats(data);
+          setFetchError(null);
+        } else {
+          const errorText = await res.text();
+          console.error('[Dashboard] API Error:', res.status, errorText);
+          setFetchError(`API Error: ${res.status}`);
         }
       } catch (error) {
-        console.error("Dashboard stats fetch error:", error);
+        console.error('[Dashboard] Fetch error:', error);
+        setFetchError('Connection failed - check if backend is running');
       }
     };
 
     if (!isLoading && user) {
+      console.log('[Dashboard] User loaded, fetching stats...');
       fetchStats();
     }
   }, [user, isLoading]);
@@ -62,6 +84,13 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 lg:p-12 bg-[#09090b] min-h-screen text-white relative overflow-hidden">
+      {/* Error Banner */}
+      {fetchError && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider">
+          {fetchError}
+        </div>
+      )}
+
       {/* Background Decor */}
       <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-purple-600/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -201,10 +230,4 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-
-
-
-
-
 

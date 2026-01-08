@@ -4,16 +4,18 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   CheckCircle, RotateCcw, Trash2,
-  History, Zap, Search, Database,
-  ShieldCheck
+  History, Zap, Search, Database, ShieldCheck,
+  Calendar, Clock, Filter, Archive, Download
 } from 'lucide-react';
 
 export default function MissionArchive() {
   const { user, isLoading } = useAuth();
   const [archivedTasks, setArchivedTasks] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+  const [filterStatus, setFilterStatus] = useState("all");
 
-  const API_BASE = "https://iqoonaz4321-taskneon-app.hf.space/api/tasks";
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/tasks";
 
   // Load from localStorage
   useEffect(() => {
@@ -31,8 +33,8 @@ export default function MissionArchive() {
     if (!user?.id) return;
 
     try {
-      // 1. Update backend state (Using PUT for task update)
-      const res = await fetch(`${API_BASE}/${task.id}?user_id=${user.id}`, {
+      // 1. Update backend state (Using PUT for task update) - fixed API endpoint
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}/api/tasks/${task.id}?user_id=${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -50,9 +52,16 @@ export default function MissionArchive() {
         localStorage.setItem('missionArchive', JSON.stringify(updatedArchive));
         setArchivedTasks(updatedArchive);
         console.log(`Mission RESTORED: ${task.title}`);
+      } else {
+        // If backend update fails, at least update locally
+        const updatedArchive = archivedTasks.filter(t => t.id !== task.id);
+        localStorage.setItem('missionArchive', JSON.stringify(updatedArchive));
+        setArchivedTasks(updatedArchive);
+        console.log(`Mission RESTORED locally: ${task.title}`);
       }
     } catch (err) {
       console.error("Restore error:", err);
+      alert("Failed to reactivate task. Please try again.");
     }
   };
 
@@ -63,109 +72,179 @@ export default function MissionArchive() {
     }
   };
 
-  const filteredTasks = archivedTasks.filter(t =>
-    t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  const exportArchive = () => {
+    const dataStr = JSON.stringify(archivedTasks, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `mission-archive-${user?.email?.split('@')[0] || 'user'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Filter and sort logic
+  const filteredTasks = archivedTasks
+    .filter(t =>
+      (t.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       t.description?.toLowerCase().includes(searchTerm.toLowerCase())) &&
+      (filterStatus === "all" || (filterStatus === "recent" && t.completedAt && new Date(t.completedAt) > new Date(Date.now() - 30*24*60*60*1000)))
+    )
+    .sort((a, b) => {
+      if (sortBy === "date") {
+        return new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime();
+      } else if (sortBy === "title") {
+        return (a.title || "").localeCompare(b.title || "");
+      }
+      return 0;
+    });
+
+  if (isLoading) return (
+    <div className="min-h-screen bg-gradient-to-br from-[#09090b] via-[#0b0b0d] to-[#09090b] flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto mb-6"></div>
+        <h2 className="text-2xl font-black text-white uppercase italic tracking-[0.2em]">LOADING MISSION ARCHIVE</h2>
+        <p className="text-sm text-purple-400 mt-2">Authenticating temporal data stream...</p>
+      </div>
+    </div>
   );
 
-  if (isLoading) return <div className="h-screen bg-[#09090b] flex items-center justify-center text-purple-500 font-black tracking-[0.5em]">LOADING ARCHIVES...</div>;
-
   return (
-    <div className="min-h-screen bg-[#09090b] text-slate-200 p-8 lg:p-12 overflow-y-auto no-scrollbar">
-      <div className="max-w-6xl mx-auto">
-
+    <div className="min-h-screen bg-[#09090b] text-slate-200">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         {/* HEADER SECTION */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 border-b border-white/5 pb-10">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <History className="text-purple-500" size={24} />
-              <p className="text-[10px] text-purple-500 font-black tracking-[0.4em] uppercase italic">Temporal Repository</p>
+        <header className="mb-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-white mb-2">Mission Archive</h1>
+              <p className="text-sm text-slate-400">Historical data repository and mission recovery system</p>
             </div>
-            <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic leading-none">Mission Archive</h1>
-          </div>
 
-          <div className="flex gap-4">
-            <div className="bg-[#111114] border border-white/5 rounded-2xl p-4 flex items-center gap-4">
-               <div>
-                 <p className="text-[8px] text-slate-500 font-black uppercase tracking-widest">Operator Context</p>
-                 <p className="text-xl font-black text-green-500">{user?.email?.split('@')[0].toUpperCase()}</p>
-               </div>
-               <ShieldCheck className="text-green-500/30" size={32} />
+            <div className="flex gap-2">
+              <button
+                onClick={exportArchive}
+                className="px-4 py-2 bg-white/10 border border-white/20 text-white rounded-md text-sm font-medium hover:bg-white/20 transition-colors"
+              >
+                Export Data
+              </button>
+              <button
+                onClick={purgeArchive}
+                className="px-4 py-2 bg-red-500/20 border border-red-500/30 text-red-400 rounded-md text-sm font-medium hover:bg-red-500/30 transition-colors"
+              >
+                Purge Records
+              </button>
             </div>
-            <button
-              onClick={purgeArchive}
-              className="bg-red-500/10 border border-red-500/20 text-red-500 px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center gap-2"
-            >
-              <Trash2 size={14} /> Purge Records
-            </button>
           </div>
         </header>
 
-        {/* METRICS & SEARCH */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-12">
-          <div className="lg:col-span-1 bg-gradient-to-br from-purple-600/20 to-indigo-600/20 border border-purple-500/20 rounded-[32px] p-6 relative overflow-hidden group">
-            <Zap className="absolute -right-4 -bottom-4 text-purple-500/10 rotate-12 group-hover:scale-110 transition-all" size={120} />
-            <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.3em] mb-1">Accomplished</p>
-            <p className="text-4xl font-black text-white italic">{archivedTasks.length}</p>
-            <p className="text-[9px] text-slate-500 mt-4 font-bold uppercase italic">Finalized Mission Logs</p>
-          </div>
+        {/* SORT & FILTER SECTION */}
+        <div className="bg-white/5 border border-white/10 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-400">Sort by:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="bg-white/10 border border-white/20 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                >
+                  <option value="date" className="bg-[#111114] text-white">Date</option>
+                  <option value="title" className="bg-[#111114] text-white">Title</option>
+                </select>
+              </div>
 
-          <div className="lg:col-span-3 flex items-center gap-4 bg-[#111114] border border-white/5 rounded-[32px] px-8 focus-within:border-purple-500/30 transition-all">
-            <Search className="text-slate-600" size={20} />
-            <input
-              type="text"
-              placeholder="Search historical records..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-transparent border-none py-6 text-lg font-bold text-white focus:outline-none placeholder-slate-800"
-            />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-400">Filter:</span>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-white/10 border border-white/20 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                >
+                  <option value="all" className="bg-[#111114] text-white">All Missions</option>
+                  <option value="recent" className="bg-[#111114] text-white">Recent (30 days)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <p className="text-sm text-slate-400">Active Filters</p>
+              <p className="text-sm font-semibold text-purple-400">{filteredTasks.length} records found</p>
+            </div>
           </div>
         </div>
 
-        {/* ARCHIVE LIST */}
-        <div className="space-y-4 pb-20">
-          {filteredTasks.length > 0 ? filteredTasks.map((task, i) => (
-            <div
-              key={task.id || i}
-              className="group flex flex-col md:flex-row items-start md:items-center justify-between p-6 rounded-[24px] bg-[#111114]/50 border border-white/[0.03] hover:border-purple-500/20 hover:bg-[#111114] transition-all"
-            >
-              <div className="flex items-start gap-6">
-                <div className="mt-1">
-                  <CheckCircle className="text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.4)]" size={20} />
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold text-slate-300 group-hover:text-white transition-colors tracking-tight line-through opacity-60 italic leading-tight">
-                    {task.title}
-                  </h4>
-                  <div className="flex flex-wrap gap-4 mt-2">
-                    <p className="text-[9px] text-slate-600 uppercase font-black tracking-widest">
-                       Mission Completed: <span className="text-slate-400">{task.completedAt || 'Legacy Data'}</span>
-                    </p>
+        {/* MISSION LIST */}
+        <div className="space-y-4">
+          {filteredTasks.length > 0 ? (
+            filteredTasks.map((task, i) => (
+              <div
+                key={task.id || i}
+                className="bg-white/5 border border-white/10 rounded-lg p-4 hover:border-purple-500/50 transition-all"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <h4 className="font-medium text-white">{task.title}</h4>
+                      <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded border border-purple-500/30">
+                        ARCHIVED
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-sm text-slate-400">
+                      <span>Completed: {task.completedAt ? new Date(task.completedAt).toLocaleDateString() : 'Legacy Data'}</span>
+                      {task.due_date && (
+                        <span>Target: {new Date(task.due_date).toLocaleDateString()}</span>
+                      )}
+                    </div>
+
+                    {task.description && (
+                      <p className="mt-2 text-sm text-slate-300 line-clamp-2">{task.description}</p>
+                    )}
                   </div>
-                  {task.description && (
-                    <p className="text-xs text-slate-700 mt-2 italic line-clamp-1 group-hover:text-slate-500">{task.description}</p>
-                  )}
+
+                  <button
+                    onClick={() => handleRestore(task)}
+                    className="ml-4 px-4 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
+                  >
+                    Re-Activate
+                  </button>
                 </div>
               </div>
-
-              <div className="flex gap-3 mt-4 md:mt-0 opacity-0 group-hover:opacity-100 transition-opacity">
+            ))
+          ) : (
+            <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+              <div className="flex justify-center mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg border border-purple-500/30 flex items-center justify-center">
+                  <Database className="text-white" size={24} />
+                </div>
+              </div>
+              <h3 className="text-lg font-medium text-white mb-2">No Mission Records Found</h3>
+              <p className="text-sm text-slate-400 mb-4">No archived missions match your current filters</p>
+              <div className="flex justify-center gap-3">
                 <button
-                  onClick={() => handleRestore(task)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600/10 text-purple-400 text-[9px] font-black uppercase tracking-widest border border-purple-500/20 hover:bg-purple-600 hover:text-white transition-all shadow-lg"
+                  onClick={() => { setSearchTerm(''); setFilterStatus('all'); }}
+                  className="px-4 py-2 bg-purple-600/20 border border-purple-500/30 text-purple-300 rounded-md text-sm font-medium hover:bg-purple-600 hover:text-white transition-colors"
                 >
-                  <RotateCcw size={12} /> Re-Activate
+                  Clear Filters
+                </button>
+                <button
+                  onClick={() => setFilterStatus('all')}
+                  className="px-4 py-2 bg-white/10 border border-white/20 text-slate-300 rounded-md text-sm font-medium hover:bg-white/20 hover:text-white transition-colors"
+                >
+                  Show All
                 </button>
               </div>
-            </div>
-          )) : (
-            <div className="text-center py-20 bg-white/[0.01] border border-dashed border-white/5 rounded-[40px]">
-              <Database className="mx-auto text-slate-800 mb-6" size={48} />
-              <h3 className="text-xl font-bold text-slate-600 uppercase italic">Empty Data Stream</h3>
-              <p className="text-xs text-slate-700 mt-2 uppercase tracking-widest">No historical data in the vault</p>
             </div>
           )}
         </div>
 
+        {/* FOOTER INFO */}
+        {archivedTasks.length > 0 && (
+          <div className="mt-8 text-center text-slate-500">
+            <p className="text-sm">Archive contains {archivedTasks.length} mission records • Last updated: {new Date().toLocaleDateString()}</p>
+          </div>
+        )}
       </div>
     </div>
   );

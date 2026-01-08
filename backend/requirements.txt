@@ -9,3 +9,4 @@ pydantic-settings
 better-auth
 python-multipart
 httpx
+asyncpg

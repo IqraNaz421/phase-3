@@ -13,7 +13,7 @@ from datetime import datetime
 
 from src.database import get_session
 from sqlmodel.ext.asyncio.session import AsyncSession
-from src.services import conversation_service
+from src.services import conversation_service, message_service
 from src.auth import get_current_user
 
 router = APIRouter(prefix="/api/{user_id}/conversations", tags=["Conversations"])

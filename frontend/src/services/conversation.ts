@@ -16,7 +16,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8
 /**
  * Get authentication token from Better Auth session
  */
-async function getAuthToken(): Promise<string | null> {
+export async function getAuthToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
   try {
@@ -35,7 +35,7 @@ async function getAuthToken(): Promise<string | null> {
 /**
  * Get current user ID from Better Auth
  */
-async function getUserId(): Promise<string | null> {
+export async function getUserId(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
   try {

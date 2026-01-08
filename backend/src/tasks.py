@@ -140,8 +140,28 @@ async def get_tasks(
     print(f"✅ [Backend] Found {len(tasks)} tasks")
     return tasks
 
+
+
 @tasks_router.post("/", response_model=TaskRead)
 async def create_task(task: TaskCreate, user_id: str = Query(...), session: AsyncSession = Depends(get_async_session)):
+    # FIX: .replace(tzinfo=None) added to prevent Postgres error
+    db_task = Task(
+        title=task.title,
+        description=task.description,
+        user_id=user_id,
+        completed=False,
+        created_at=datetime.now().replace(tzinfo=None),
+        updated_at=datetime.now().replace(tzinfo=None)
+    )
+    session.add(db_task)
+    await session.commit()
+    await session.refresh(db_task)
+    return db_task
+
+
+# Create task by user path
+@tasks_router.post("/{user_id}/tasks", response_model=TaskRead)
+async def create_task_by_user_path(task: TaskCreate, user_id: str, session: AsyncSession = Depends(get_async_session)):
     # FIX: .replace(tzinfo=None) added to prevent Postgres error
     db_task = Task(
         title=task.title,
@@ -173,6 +193,25 @@ async def update_task(task_id: uuid.UUID, task_update: TaskUpdate, user_id: str 
     await session.refresh(db_task)
     return db_task
 
+
+# New endpoint to support the frontend's expected URL structure: /api/{user_id}/tasks/{task_id}
+@tasks_router.put("/{user_id}/tasks/{task_id}", response_model=TaskRead)
+async def update_task_by_user_path(task_id: uuid.UUID, user_id: str, task_update: TaskUpdate, session: AsyncSession = Depends(get_async_session)):
+    db_task = await session.get(Task, task_id)
+    if not db_task or str(db_task.user_id) != user_id:
+        raise HTTPException(status_code=404, detail="Unauthorized")
+
+    task_data = task_update.dict(exclude_unset=True)
+    for field, value in task_data.items():
+        setattr(db_task, field, value)
+
+    # FIX: .replace(tzinfo=None) added to prevent Postgres error
+    db_task.updated_at = datetime.now().replace(tzinfo=None)
+
+    await session.commit()
+    await session.refresh(db_task)
+    return db_task
+
 @tasks_router.delete("/{task_id}")
 async def delete_task(task_id: uuid.UUID, user_id: str = Query(...), session: AsyncSession = Depends(get_async_session)):
     task = await session.get(Task, task_id)
@@ -181,3 +220,25 @@ async def delete_task(task_id: uuid.UUID, user_id: str = Query(...), session: As
     await session.delete(task)
     await session.commit()
     return {"message": "Deleted"}
+
+
+# New endpoint to support the frontend's expected URL structure: /api/{user_id}/tasks/{task_id}
+@tasks_router.delete("/{user_id}/tasks/{task_id}")
+async def delete_task_by_user_path(task_id: uuid.UUID, user_id: str, session: AsyncSession = Depends(get_async_session)):
+    task = await session.get(Task, task_id)
+    if not task or str(task.user_id) != user_id:
+        raise HTTPException(status_code=404, detail="Unauthorized")
+    await session.delete(task)
+    await session.commit()
+    return {"message": "Deleted"}
+
+
+# Get single task by user path
+@tasks_router.get("/{user_id}/tasks/{task_id}", response_model=TaskRead)
+async def get_task_by_user_path(task_id: uuid.UUID, user_id: str, session: AsyncSession = Depends(get_async_session)):
+    task = await session.get(Task, task_id)
+    if not task or str(task.user_id) != user_id:
+        raise HTTPException(status_code=404, detail="Unauthorized")
+    return task
+
+

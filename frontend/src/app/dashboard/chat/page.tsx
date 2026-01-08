@@ -120,7 +120,7 @@ export default function ChatPage() {
                 Initializing Chat...
               </h3>
               <p className="text-gray-500 text-sm">
-                Setting up your AI assistant
+                Creating your first conversation
               </p>
             </div>
           </div>
