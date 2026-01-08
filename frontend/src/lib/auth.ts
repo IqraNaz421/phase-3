@@ -2,7 +2,8 @@ import { createAuthClient } from 'better-auth/react';
 
 // Initialize Better Auth client
 export const authClient = createAuthClient({
-  baseURL: 'http://localhost:8000',
+  // baseURL: 'http://localhost:8000',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://iqoonaz4321-phase-3.hf.space',
   fetchOptions: {
     credentials: 'include', // Include cookies in requests
   }
